@@ -115,6 +115,15 @@
   #grpSel2{padding:9px 10px;border-radius:8px;background:#1b1b1b;color:#eee;border:1px solid var(--line);font-size:13px;cursor:pointer;max-width:230px;}
   .pbar button#playBtn2{background:var(--accent);color:#04121a;font-weight:700;}
   .pbar button#playBtn2:hover{background:#5fe0d4;}
+  /* 语速滑块 */
+  .speedwrap{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;}
+  .speedwrap .sl{font-size:13px;color:var(--sub);white-space:nowrap}
+  .speedwrap .rv{font-size:13px;color:var(--accent2);font-weight:600;min-width:66px;text-align:right;white-space:nowrap}
+  input[type=range].rate{-webkit-appearance:none;appearance:none;width:140px;height:6px;border-radius:3px;background:#2a3a52;outline:none;cursor:pointer}
+  input[type=range].rate::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:17px;height:17px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 0 4px rgba(0,0,0,.4)}
+  input[type=range].rate::-moz-range-thumb{width:17px;height:17px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer}
+  .speedwrap .ticks{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);margin-top:3px;width:140px;padding:0 1px}
+  @media(max-width:600px){input[type=range].rate{width:110px}.speedwrap .ticks{width:110px}.speedwrap .rv{min-width:54px}}
 #plist{counter-reset:wordnum}
 #plist li.row{counter-increment:wordnum}
 #plist li.row::before{content:counter(wordnum);flex:0 0 auto;min-width:22px;text-align:right;color:#5a6b80;font-size:12px;align-self:center;font-variant-numeric:tabular-nums;margin-right:2px}
@@ -193,7 +202,11 @@
     <select id="grpSel2" onchange="jumpGroup2(this.value)"><option value="all">起点分组（全部）</option></select>
     <button onclick="playAll()">▶ 从选中词顺读</button>
     <button class="sec" id="playBtn2" onclick="togglePlay()">▶ 开始</button>
-    <button class="sec" onclick="toggleRate()">语速：<span id="rt">快速</span></button>
+    <span class="speedwrap">
+      <span class="sl">语速</span>
+      <input type="range" class="rate" id="rateSlider" min="0" max="6" step="1" value="5" oninput="setRate(this.value)">
+      <span class="rv" id="rt">快速 1.35×</span>
+    </span>
     <button id="cnBtn" class="sec on" onclick="toggleCn()">读中文：开</button>
     <span class="hint" id="startHint">从 1. financial 开始</span>
   </div>
@@ -737,7 +750,15 @@ function buildList(){
   }
 }
 /* ---------- 发音：优先播放电脑预录音频（与手机完全一致），无录音则降级浏览器合成 ---------- */
-let rate=1.2, rates=[1.0,0.85,1.2], rn=2, ratesLabel=["正常","慢速","快速"];
+let rateLevels=[0.6,0.75,0.9,1.0,1.15,1.35,1.5], rateLabels=["极慢","很慢","慢速","正常","较快","快速","极快"];
+let rateIdx=5, rate=rateLevels[rateIdx];
+function setRate(idx){
+  rateIdx=parseInt(idx,10); if(isNaN(rateIdx))rateIdx=5;
+  rate=rateLevels[rateIdx];
+  let rt=document.getElementById("rt"); if(rt) rt.textContent=rateLabels[rateIdx]+" "+rate.toFixed(2)+"×";
+  let sl=document.getElementById("rateSlider");
+  if(sl){ let pct=(rateIdx/(rateLevels.length-1))*100; sl.style.background="linear-gradient(90deg,var(--accent) 0%,var(--accent) "+pct+"%,#2a3a52 "+pct+"%)"; }
+}
 let cnVoices=[], timer=null, readCn=true, startIdx=0, audioOK=true;
 const AUDIO_BASE="audio/";
 const au=document.getElementById("au");
@@ -829,7 +850,6 @@ function jumpGroup2(g){
   let first=items.find(li=>li.dataset.sl===g);
   if(first) pick(first);
 }
-function toggleRate(){ rn=(rn+1)%rates.length; rate=rates[rn]; document.getElementById("rt").textContent=ratesLabel[rn]; }
 function toggleCn(){ readCn=!readCn; let b=document.getElementById("cnBtn"); b.textContent="读中文："+(readCn?"开":"关"); b.classList.toggle("on",readCn); }
 
 /* ---------- 查找：我的词库筛选 / 全字典在线查词 + 加入练习 ---------- */
@@ -908,6 +928,7 @@ function renderCustom2(){
   });
 }
 tab(0);
+setRate(rateIdx);
 </script>
 </body>
 </html>
