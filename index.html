@@ -188,10 +188,10 @@
 <!-- ============ 单词本 ============ -->
 <section class="active">
   <h2>一、单词本（离线播放器）</h2>
-  <p class="muted">点任意一行选中为<b>起点</b>；「从所选顺读」从该处往后读；▶ 开始／暂停 可随时暂停与继续。点 ▶ 只读单个词。英文读完后自动读中文释义（可关）。</p>
+  <p class="muted">点任意一行选中为<b>起点（高亮行）</b>；「从选中词顺读」从该处往后连读；▶ 开始／暂停 可随时暂停与继续。点 ▶ 只读单个词。英文读完后自动读中文释义（可关）。</p>
   <div class="bar pbar">
-    <select id="grpSel2" onchange="jumpGroup2(this.value)"><option value="all">跳转组别（全部）</option></select>
-    <button onclick="playAll()">▶ 从所选顺读</button>
+    <select id="grpSel2" onchange="jumpGroup2(this.value)"><option value="all">起点分组（全部）</option></select>
+    <button onclick="playAll()">▶ 从选中词顺读</button>
     <button class="sec" id="playBtn2" onclick="togglePlay()">▶ 开始</button>
     <button class="sec" onclick="toggleRate()">语速：<span id="rt">快速</span></button>
     <button id="cnBtn" class="sec on" onclick="toggleCn()">读中文：开</button>
@@ -721,7 +721,7 @@ function buildList(){
     const [w,ph,tr,g]=r;
     const sl=sublistOf(g);
     const cn=tr.split(/[、；;，]/)[0].replace(/^[a-zA-Z./]+\s*/,'');
-    html+=`<li data-w="${w}" data-tr="${cn}" data-i="${i}" data-sl="${sl}" onclick="pick(this)">`+
+    html+=`<li class="row" data-w="${w}" data-tr="${cn}" data-i="${i}" data-sl="${sl}" onclick="pick(this)">`+
       `<button class="say" onclick="say(event,this)">▶</button>`+
       `<span class="w">${w}</span><span class="ph">${ph}</span><span class="tr">${tr}</span></li>`;
   });
@@ -729,7 +729,7 @@ function buildList(){
   renderCustom2();
   const sel=document.getElementById('grpSel2');
   if(sel && sel.options.length<=1){
-    sel.innerHTML='<option value="all">跳转 Sublist（全部）</option>'+
+    sel.innerHTML='<option value="all">起点分组（全部）</option>'+
       '<option value="sl1">Sublist 1（60词）</option>'+
       '<option value="sl2">Sublist 2（60词）</option>'+
       '<option value="sl3">Sublist 3（60词）</option>'+
@@ -793,7 +793,7 @@ function highlight(li){
   document.querySelectorAll("#plist li").forEach(x=>x.classList.remove("on"));
   if(li){li.classList.add("on"); li.scrollIntoView({block:"center",behavior:"smooth"});}
 }
-let seqPlaying=false, seqPaused=false, seqPos=0, seqTimer=null;
+let seqPlaying=false, seqPaused=false, seqPos=0, seqTimer=null, seqEpoch=0;
 function updatePlayBtn(){
   let b=document.getElementById("playBtn2");
   if(!b) return;
@@ -803,9 +803,11 @@ function updatePlayBtn(){
 }
 function stepSeq(){
   let items=[...document.querySelectorAll("#plist li")].filter(x=>x.classList.contains("row"));
+  if(!seqPlaying) return;
   if(seqPos>=items.length){ seqPlaying=false; seqPaused=false; updatePlayBtn(); highlight(null); return; }
   let li=items[seqPos++]; highlight(li);
-  sayWord(li, function(){ if(!seqPlaying) return; seqTimer=setTimeout(stepSeq,200); });
+  const ep=seqEpoch;
+  sayWord(li, function(){ if(!seqPlaying || ep!==seqEpoch) return; seqTimer=setTimeout(stepSeq,200); });
 }
 function playAll(){
   try{speechSynthesis.cancel();}catch(e){}
@@ -813,11 +815,11 @@ function playAll(){
   if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer);
   let items=[...document.querySelectorAll("#plist li")].filter(x=>x.classList.contains("row"));
   if(!items.length) return;
-  seqPos=startIdx; seqPlaying=true; seqPaused=false; updatePlayBtn();
+  seqEpoch++; seqPos=startIdx; seqPlaying=true; seqPaused=false; updatePlayBtn();
   stepSeq();
 }
-function pauseSeq(){ if(seqPlaying){ seqPlaying=false; seqPaused=true; try{au.pause();}catch(e){} try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); updatePlayBtn(); } }
-function resumeSeq(){ if(seqPaused){ seqPaused=false; seqPlaying=true; updatePlayBtn(); stepSeq(); } }
+function pauseSeq(){ if(seqPlaying){ seqPlaying=false; seqPaused=true; seqEpoch++; try{au.pause();}catch(e){} try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); updatePlayBtn(); } }
+function resumeSeq(){ if(seqPaused){ seqPaused=false; seqPlaying=true; seqEpoch++; updatePlayBtn(); stepSeq(); } }
 function togglePlay(){ if(seqPlaying) pauseSeq(); else if(seqPaused) resumeSeq(); else playAll(); }
 function stopAll(){ seqPlaying=false; seqPaused=false; try{au.pause();au.currentTime=0;}catch(e){} try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); highlight(null); updatePlayBtn(); }
 function jumpGroup2(g){
