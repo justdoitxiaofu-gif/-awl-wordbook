@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AWL 单词本</title>
+<meta name="theme-color" content="#0e1116">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AWL单词本">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<script>
+  if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(e){console.log('SW register failed:',e);});});}
+</script>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2430; --line:#2a3340;
+    --txt:#e6edf3; --sub:#9aa7b4; --accent:#3b82f6; --accent2:#22d3ee; --accent3:#a855f7;
+    --ok:#1d9e75; --warn:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.6}
+  header{padding:22px 20px 16px;border-bottom:1px solid var(--line);
+    background:linear-gradient(120deg,#101826 0%,#0e1116 60%);}
+  header h1{margin:0;font-size:22px;font-weight:600;
+    background:linear-gradient(90deg,var(--accent2),var(--accent3));
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  header .meta{color:var(--sub);font-size:13px;margin-top:6px}
+  nav{display:flex;gap:6px;padding:10px 16px;flex-wrap:nowrap;border-bottom:1px solid var(--line);
+    position:sticky;top:0;background:var(--bg);z-index:5;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{background:var(--panel);color:var(--sub);border:1px solid var(--line);white-space:nowrap;
+    padding:8px 14px;border-radius:8px;font-size:14px;cursor:pointer}
+  nav button.active{background:linear-gradient(90deg,var(--accent),var(--accent3));color:#fff;border-color:transparent}
+  section{display:none;padding:20px;max-width:1100px;margin:0 auto}
+  section.active{display:block}
+  h2{font-size:18px;border-left:3px solid var(--accent2);padding-left:10px;margin:8px 0 16px}
+  h3{font-size:15px;color:var(--accent2);margin:22px 0 10px}
+  p,li{color:var(--txt);font-size:14px}
+  .muted{color:var(--sub)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}
+  .stat .n{font-size:26px;font-weight:700;color:var(--accent2)}
+  .stat .l{font-size:12px;color:var(--sub);margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--accent2);font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .kw{color:var(--accent3);font-weight:600}
+  .badge{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+    border-radius:20px;padding:2px 10px;font-size:12px;color:var(--sub);margin:2px}
+  /* 发音播放器 */
+  .bar{display:flex;gap:8px;margin:12px 0 16px;flex-wrap:wrap;align-items:center}
+  .bar button{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:14px;cursor:pointer}
+  .bar button.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .bar button.on{background:var(--ok)}
+  .bar span.hint{color:var(--accent2);font-size:13px;line-height:36px;margin-left:4px}
+  ul.list{list-style:none;margin:0;padding:0}
+  ul.list li{display:flex;align-items:center;gap:12px;padding:13px 14px;
+    border-bottom:1px solid var(--line);cursor:pointer}
+  ul.list li:hover{background:var(--panel2)}
+  ul.list li.on{background:#1c2c4a}
+  ul.list li .say{background:var(--accent);color:#fff;border:none;width:38px;height:38px;
+    border-radius:50%;font-size:15px;flex:0 0 auto;cursor:pointer}
+  ul.list li .w{font-size:18px;font-weight:600;min-width:140px}
+  ul.list li .ph{color:#7fb0ff;font-size:13px;min-width:140px}
+  ul.list li .tr{color:var(--sub);font-size:13px}
+  /* 查找（我的词库 / 全字典） */
+  .searchbox2{border-top:1px solid var(--line);padding-top:10px;margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .seg2{display:flex;gap:6px;}
+  .segbtn2{background:var(--panel);color:var(--sub);border:1px solid var(--line);padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;}
+  .segbtn2.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+  .searchbox2 input{flex:1;min-width:160px;padding:8px 10px;border-radius:8px;background:var(--panel);color:var(--txt);border:1px solid var(--line);font-size:14px;}
+  .searchbox2 .qbtn2{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;}
+  .searchbox2 .exp2{background:var(--panel);color:var(--sub);border:1px solid var(--line);padding:7px 10px;border-radius:8px;font-size:12px;cursor:pointer;}
+  .sinfo2{width:100%;font-size:12.5px;color:var(--sub);line-height:1.5;min-height:18px;}
+  .sinfo2 .dictcard{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--txt);display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px;}
+  .sinfo2 .addbtn2{background:var(--ok);color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;}
+  .sinfo2 .already{color:var(--accent2);}
+  .sinfo2 .ok{color:var(--ok);}
+  .sinfo2 .err{color:var(--warn);}
+  .sinfo2 .ph{color:#7fb0ff;}
+  .sinfo2 .pos{color:var(--sub);font-style:italic;}
+  ul.list li.custom2{background:#0f1b14;}
+  ul.list li .star{color:#f1c40f;font-size:13px;}
+  ul.list li .rm2{background:none;border:none;color:#e07a5f;font-size:18px;cursor:pointer;margin-left:auto;padding:0 6px;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:600}
+  .pill.g1{background:#15324a;color:#7fb0ff}
+  .pill.g2{background:#153a30;color:#5ee0a0}
+  .pill.g3{background:#3a2a15;color:#f0b35e}
+  .pill.g4{background:#2a1f3a;color:#c79bff}
+  .pill.g5{background:#152f3a;color:#5ec8e0}
+  .pill.g6{background:#3a1530;color:#ff9bd6}
+  .migrate ol{margin:8px 0;padding-left:22px}
+  .migrate li{margin:8px 0}
+  .code{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:12px;
+    font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:#9fe0a0;overflow:auto}
+  .filetree{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--sub);
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;line-height:1.8}
+  .filetree .f{color:var(--txt)}
+  .filetree .d{color:var(--accent2);font-weight:600}
+  .note{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);
+    border-radius:10px;padding:12px 14px;margin:12px 0;font-size:13px}
+  .ok{color:var(--ok)} .wn{color:var(--warn)}
+  footer{padding:24px 20px;border-top:1px solid var(--line);color:var(--sub);font-size:12px;text-align:center}
+  @media(max-width:600px){ul.list li .ph,ul.list li .tr{min-width:0;font-size:12px}
+    ul.list li .w{min-width:0;font-size:15px} ul.list li{flex-wrap:wrap}}
+  /* 发音播放器：控制条吸顶常驻 + Sublist 跳转（位于 nav 下方，不遮挡 nav） */
+  .pbar{position:sticky;top:54px;z-index:4;background:#101826;padding:10px 0 12px;margin:8px 0 14px;border-bottom:1px solid var(--line);}
+  #grpSel2{padding:9px 10px;border-radius:8px;background:#1b1b1b;color:#eee;border:1px solid var(--line);font-size:13px;cursor:pointer;max-width:230px;}
+  .pbar button#playBtn2{background:var(--accent);color:#04121a;font-weight:700;}
+  .pbar button#playBtn2:hover{background:#5fe0d4;}
+#plist{counter-reset:wordnum}
+#plist li.row{counter-increment:wordnum}
+#plist li.row::before{content:counter(wordnum);flex:0 0 auto;min-width:22px;text-align:right;color:#5a6b80;font-size:12px;align-self:center;font-variant-numeric:tabular-nums;margin-right:2px}
+@media(max-width:600px){#plist li.row::before{min-width:18px;font-size:11px;margin-right:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>AWL 学术词汇 · 学习总览</h1>
+  <div class="meta">离线单文件 · 自带发音播放器 · 背词记录 · 记忆方法 · 需求与迁移指南 &nbsp;|&nbsp; 最后更新 2026-09-30 · Sublist 1 全 60 词 + Sublist 2 全 60 词 + Sublist 3 全 60 词 + 交大图书馆 101 词（共 281 词）</div>
+</header>
+
+<nav>
+  <button class="active" onclick="tab(0)">📘 单词本</button>
+  <button onclick="tab(1)">📊 概览</button>
+  <button onclick="tab(2)">📝 背词记录</button>
+  <button onclick="tab(3)">🔑 词根钥匙</button>
+  <button onclick="tab(4)">📋 需求与迁移</button>
+</nav>
+
+<!-- ============ 概览 ============ -->
+<section>
+  <h2>二、学习概览</h2>
+  <div class="grid">
+    <div class="stat"><div class="n">281</div><div class="l">已背单词（S1 + S2 + S3 + 交大图书馆）</div></div>
+    <div class="stat"><div class="n">3</div><div class="l">Sublist 数</div></div>
+    <div class="stat"><div class="n">38</div><div class="l">词根钥匙</div></div>
+    <div class="stat"><div class="n">1</div><div class="l">AWL Sublist 通关</div></div>
+  </div>
+
+  <div class="card">
+    <h3>什么是 AWL ？为什么背它？</h3>
+    <p><b>AWL（Academic Word List，学术词汇表）</b>由新西兰惠灵顿维多利亚大学 Averil Coxhead（2000）编制，是雅思/托福圈公认的<strong>头号学术词表</strong>。共 <b>570 个词族</b>，按频率分 10 个 Sublist（1–9 各 60 词，第 10 为 30 词）。<b>Sublist 1 最高频、最该先背</b>，已在本包全部完成。</p>
+    <p class="muted">参考来源（权威免费）：维多利亚大学官网 wgtn.ac.nz/lals/resources/academicwordlist；EAP Foundation eapfoundation.com/vocab/academic/awllists。原稿 PDF：AWL_Academic_English_UK.pdf（见原始资料）。</p>
+  </div>
+
+  <div class="card">
+    <h3>我们的记忆方法（核心心法）</h3>
+    <p>一句话原则：<b class="kw">拆词根 + 造画面 + 成串记同族词</b>。死记字母永远背不牢，认识词根这把「钥匙」，后面越背越快。</p>
+    <ul>
+      <li><b>拆分法</b>：把单词拆成熟悉的词根/前缀/后缀（如 dis+tribute = 分开给 = 分发）</li>
+      <li><b>谐音法</b>：用读音编中文画面（如 sector → 切披萨切出一块 → 部门/扇区）</li>
+      <li><b>造句法</b>：放进语境区分易混词（如 estimate / assessment）</li>
+      <li><b>成串法</b>：记一个词根，带走一串同族词（如 fin → final / finish / define / definition）</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>本包里有什么？</h3>
+    <div class="filetree">
+<span class="d">AWL背词_迁移包/</span><br>
+├── <span class="f">AWL学习总览.html</span> &nbsp;<span class="muted">← 你正在看的这个文件（一个媒介核心）</span><br>
+├── <span class="f">迁移说明_README.md</span> &nbsp;<span class="muted">← 二台电脑如何恢复并继续</span><br>
+├── <span class="d">原始资料/</span> &nbsp;<span class="muted">← 全部原文件（图、PDF、CSV、XML、生成脚本）</span><br>
+│ ├── 背词记录本.md &nbsp; 第1–6组完整记录<br>
+│ ├── AWL单词本.html &nbsp; 独立发音网页（原版）<br>
+│ ├── 有道单词本导入_AWL全部.xml / .txt<br>
+│ ├── AWL_570词_Anki导入.csv &nbsp; AWL_570词_中英对照.md &nbsp; AWL_570词_打印背诵表.html<br>
+│ ├── 第1–7组_记忆表.png（深色图卡）<br>
+│ ├── AWL_Academic_English_UK.pdf（词表原稿）<br>
+│ ├── gen_youdao_and_audio.py（发音网站生成器，可加词重跑）<br>
+│ └── 图卡_A3拼版/ &nbsp; 图卡_A4打印/<br>
+└── <span class="d">记忆与工作流/</span> &nbsp;<span class="muted">← 让二台电脑接上记忆</span><br>
+&nbsp;&nbsp;├── 2026-08-01.md（工作日志/记忆）<br>
+&nbsp;&nbsp;└── vocab-memory-batch/（背词工作流技能）<br>
+    </div>
+  </div>
+  <div class="note"><b>怎么用这个单文件：</b>直接双击用浏览器打开即可，<b>无需联网、无需安装</b>。「单词本」页点 ▶ 即可听发音（用系统语音引擎）。想继续加单词，改 <span class="code" style="display:inline;padding:1px 6px">原始资料/gen_youdao_and_audio.py</span> 后重跑即可。</div>
+</section>
+
+<!-- ============ 单词本 ============ -->
+<section class="active">
+  <h2>一、单词本（离线播放器）</h2>
+  <p class="muted">点任意一行选中为<b>起点</b>；「从所选顺读」从该处往后读；▶ 开始／暂停 可随时暂停与继续。点 ▶ 只读单个词。英文读完后自动读中文释义（可关）。</p>
+  <div class="bar pbar">
+    <select id="grpSel2" onchange="jumpGroup2(this.value)"><option value="all">跳转组别（全部）</option></select>
+    <button onclick="playAll()">▶ 从所选顺读</button>
+    <button class="sec" id="playBtn2" onclick="togglePlay()">▶ 开始</button>
+    <button class="sec" onclick="toggleRate()">语速：<span id="rt">快速</span></button>
+    <button id="cnBtn" class="sec on" onclick="toggleCn()">读中文：开</button>
+    <span class="hint" id="startHint">从 1. financial 开始</span>
+  </div>
+  <audio id="au" preload="none"></audio>
+  <div class="searchbox2">
+    <div class="seg2">
+      <button id="modeBank2" class="segbtn2 on" onclick="setMode2('bank')">我的词库</button>
+      <button id="modeDict2" class="segbtn2" onclick="setMode2('dict')">全字典</button>
+    </div>
+    <input id="q2" type="text" placeholder="输入单词 / 中文筛选…" oninput="onInput2()" onkeydown="onKey2(event)">
+    <button id="qbtn2" class="qbtn2" style="display:none" onclick="doSearch2()">🔍</button>
+    <button class="exp2" onclick="exportCustom2()">⤓ 导出</button>
+    <div class="sinfo2" id="searchInfo2"></div>
+  </div>
+  <ul class="list" id="plist"></ul>
+</section>
+
+<!-- ============ 背词记录 ============ -->
+<section>
+  <h2>三、背词记录（第 1–7 组）</h2>
+
+  <h3>第 1 组 · 经济类（9 词）</h3>
+  <table><tr><th>单词</th><th>释义</th><th>记忆方法</th></tr>
+  <tr><td><b>financial</b></td><td>财政的 / 金融的</td><td>词根 <span class="kw">fin</span>=了结/边界（final、finish）。钱要「结算 fin」→ 金融财政。带记：final、define</td></tr>
+  <tr><td>economic</td><td>经济的</td><td><span class="kw">eco</span>(家)+<span class="kw">nom</span>(管理) → 「管家之道」=经济</td></tr>
+  <tr><td>income</td><td>收入</td><td><span class="kw">in</span>(进)+<span class="kw">come</span>(来) → 「进来的钱」</td></tr>
+  <tr><td>benefit</td><td>好处 / 利益</td><td><span class="kw">bene</span>(好)+fit(做) → 「做得好」=好处</td></tr>
+  <tr><td>labour</td><td>劳动 / 劳工</td><td>联想 co<b>llabor</b>ate / e<b>labor</b>ate → labor=出力</td></tr>
+  <tr><td>export</td><td>出口</td><td><span class="kw">ex</span>(向外)+<span class="kw">port</span>(港口) → 「从港口往外运」</td></tr>
+  <tr><td><b>distribution</b></td><td>分布 / 分发</td><td><span class="kw">dis</span>(分开)+<span class="kw">tribute</span>(给予) → 「分开地给出去」。带记：contribute、attribute</td></tr>
+  <tr><td>percent</td><td>百分比</td><td><span class="kw">per</span>(每)+<span class="kw">cent</span>(百) → 「每一百」</td></tr>
+  <tr><td><b>sector</b></td><td>部门 / 领域 / 扇区</td><td>词根 <span class="kw">sect</span>=切。切披萨切出一块=sector。带记：section、insect</td></tr>
+  </table>
+
+  <h3>第 2 组 · 研究类（12 词）</h3>
+  <table><tr><th>单词</th><th>音标</th><th>释义</th><th>拆分 / 谐音</th><th>造句</th></tr>
+  <tr><td>research</td><td>/rɪˈsɜːtʃ/</td><td>研究</td><td>re+search；谐「瑞·search」</td><td>I do research on AI every day.</td></tr>
+  <tr><td>data</td><td>/ˈdeɪtə/</td><td>数据</td><td>谐「贷他」</td><td>The data shows a clear trend.</td></tr>
+  <tr><td>analysis</td><td>/əˈnæləsɪs/</td><td>分析</td><td>ana(分开)+lysis(松解)</td><td>Her analysis was accurate.</td></tr>
+  <tr><td>method</td><td>/ˈmeθəd/</td><td>方法</td><td>meth(路)+od；谐「卖itd」</td><td>We need a better method.</td></tr>
+  <tr><td>assessment</td><td>/əˈsesmənt/</td><td>评估</td><td>as+sess(坐)+ment</td><td>The assessment takes two hours.</td></tr>
+  <tr><td>estimate</td><td>/ˈestɪmeɪt/</td><td>估计</td><td>esti(价值)+mate</td><td>I estimate it costs 100 dollars.</td></tr>
+  <tr><td>theory</td><td>/ˈθɪəri/</td><td>理论</td><td>谐「稀饿瑞」</td><td>This theory explains everything.</td></tr>
+  <tr><td>evidence</td><td>/ˈevɪdəns/</td><td>证据</td><td>e(出)+<span class="kw">vid</span>(看)</td><td>There is no evidence for this.</td></tr>
+  <tr><td>interpretation</td><td>/ɪnˌtɜːprɪˈteɪʃn/</td><td>解释/诠释</td><td>inter(之间)+pret(说)</td><td>Your interpretation differs.</td></tr>
+  <tr><td>definition</td><td>/ˌdefɪˈnɪʃn/</td><td>定义</td><td>de+<span class="kw">fin</span>(边界)</td><td>What's the definition?</td></tr>
+  <tr><td>variables</td><td>/ˈveəriəblz/</td><td>变量</td><td><span class="kw">vari</span>(变)+able</td><td>Too many variables here.</td></tr>
+  <tr><td>factors</td><td>/ˈfæktəz/</td><td>因素</td><td><span class="kw">fact</span>(做)+or</td><td>Many factors affect the result.</td></tr>
+  </table>
+
+  <h3>第 3 组 · 法律类（8 词）</h3>
+  <table><tr><th>单词</th><th>音标</th><th>释义</th><th>拆分 / 串记</th><th>造句</th></tr>
+  <tr><td>legal</td><td>/ˈliːɡl/</td><td>合法的、法律的</td><td><span class="kw">leg</span>(法)+al；谐「里狗」</td><td>It's not legal to park here.</td></tr>
+  <tr><td>constitutional</td><td>/ˌkɒnstɪˈtjuːʃənl/</td><td>宪法的</td><td>con+<span class="kw">stitut</span>(建立)</td><td>This law is constitutional.</td></tr>
+  <tr><td>legislation</td><td>/ˌledʒɪsˈleɪʃn/</td><td>立法、法规</td><td><span class="kw">leg</span>(法)+lat(带来)</td><td>New legislation was passed.</td></tr>
+  <tr><td>contract</td><td>/ˈkɒntrækt/</td><td>合同；收缩</td><td>con+<span class="kw">tract</span>(拉)</td><td>We signed a contract.</td></tr>
+  <tr><td>policy</td><td>/ˈpɒləsi/</td><td>政策、方针</td><td>polic(政务)+y</td><td>The government changed its policy.</td></tr>
+  <tr><td>authority</td><td>/ɔːˈθɒrəti/</td><td>权威、当局</td><td><span class="kw">author</span>(作者)+ity</td><td>Police have the authority to arrest.</td></tr>
+  <tr><td>required</td><td>/rɪˈkwaɪəd/</td><td>必需的</td><td>re+<span class="kw">quire</span>(寻求)</td><td>A passport is required.</td></tr>
+  <tr><td>principle</td><td>/ˈprɪnsəpl/</td><td>原则、原理</td><td><span class="kw">prin</span>(第一)+cip(拿)</td><td>It's a matter of principle.</td></tr>
+  </table>
+
+  <h3>第 4 组 · 论文结构类（10 词）</h3>
+  <table><tr><th>单词</th><th>音标</th><th>释义</th><th>拆分 / 串记</th><th>造句</th></tr>
+  <tr><td>concept</td><td>/ˈkɒnsept/</td><td>概念</td><td>con+<span class="kw">cept</span>(抓)</td><td>The concept is hard to explain.</td></tr>
+  <tr><td>structure</td><td>/ˈstrʌktʃə/</td><td>结构；构建</td><td><span class="kw">struct</span>(建)+ure</td><td>The essay has a clear structure.</td></tr>
+  <tr><td>section</td><td>/ˈsekʃn/</td><td>部分、章节</td><td><span class="kw">sect</span>(切)+ion</td><td>Read the first section.</td></tr>
+  <tr><td>context</td><td>/ˈkɒntekst/</td><td>语境、背景</td><td>con+text(文本)</td><td>Understand the context.</td></tr>
+  <tr><td>procedure</td><td>/prəˈsiːdʒə/</td><td>程序、步骤</td><td>pro+<span class="kw">ced</span>(走)</td><td>Follow the correct procedure.</td></tr>
+  <tr><td>process</td><td>/ˈprəʊses/</td><td>过程；处理</td><td>pro+<span class="kw">cess</span>(走)</td><td>Learning is a slow process.</td></tr>
+  <tr><td>approach</td><td>/əˈprəʊtʃ/</td><td>方法；接近</td><td>ap+proach(近)</td><td>We need a new approach.</td></tr>
+  <tr><td>function</td><td>/ˈfʌŋkʃn/</td><td>功能；运作</td><td>funct(执行)+ion</td><td>What's the function of this?</td></tr>
+  <tr><td>role</td><td>/rəʊl/</td><td>角色、作用</td><td>谐「肉」;同音roll</td><td>She plays an important role.</td></tr>
+  <tr><td>source</td><td>/sɔːs/</td><td>来源、出处</td><td>sourc(涌出)</td><td>What's the source of this?</td></tr>
+  </table>
+
+  <h3>第 5 组 · 常见动词（9 词）</h3>
+  <table><tr><th>单词</th><th>音标</th><th>释义</th><th>拆分 / 串记</th><th>造句</th></tr>
+  <tr><td>create</td><td>/kriˈeɪt/</td><td>创造</td><td>creat(生长)+e</td><td>Artists create beautiful things.</td></tr>
+  <tr><td>derive</td><td>/dɪˈraɪv/</td><td>得出、源于</td><td>de+rive(河)</td><td>This word derives from Latin.</td></tr>
+  <tr><td>identify</td><td>/aɪˈdentɪfaɪ/</td><td>识别、确定</td><td>ident(相同)+ify</td><td>Can you identify the problem?</td></tr>
+  <tr><td>assume</td><td>/əˈsjuːm/</td><td>假定、认为</td><td>as+<span class="kw">sume</span>(拿)</td><td>Don't assume he is wrong.</td></tr>
+  <tr><td>occur</td><td>/əˈkɜː/</td><td>发生</td><td>oc+<span class="kw">cur</span>(跑)</td><td>Accidents occur every day.</td></tr>
+  <tr><td>indicate</td><td>/ˈɪndɪkeɪt/</td><td>表明、指示</td><td>in+<span class="kw">dic</span>(说)</td><td>The sign indicates danger.</td></tr>
+  <tr><td>respond</td><td>/rɪˈspɒnd/</td><td>回应</td><td>re+<span class="kw">spond</span>(回答)</td><td>Please respond to my email.</td></tr>
+  <tr><td>involve</td><td>/ɪnˈvɒlv/</td><td>涉及、包含</td><td>in+<span class="kw">volve</span>(卷)</td><td>The job involves a lot of travel.</td></tr>
+  <tr><td>establish</td><td>/ɪˈstæblɪʃ/</td><td>建立、确立</td><td>e+stabl(稳定)+ish</td><td>They established the company in 1990.</td></tr>
+  </table>
+
+  <h3>第 6 组 · Sublist 1 补漏（12 词）</h3>
+  <p class="muted">前 5 组核对标准 Sublist 1 后发现漏掉这 12 个纯 headword，补齐后 Sublist 1 完整 60/60。</p>
+  <table><tr><th>单词</th><th>音标</th><th>释义</th><th>拆分 / 串记</th><th>造句</th></tr>
+  <tr><td>area</td><td>/ˈeəriə/</td><td>区域、领域</td><td>谐「爱瑞娅」</td><td>This area is very quiet.</td></tr>
+  <tr><td>available</td><td>/əˈveɪləbl/</td><td>可获得的、可用的</td><td>a+<span class="kw">vail</span>(价值)+able</td><td>Tickets are available now.</td></tr>
+  <tr><td>consist</td><td>/kənˈsɪst/</td><td>由…组成</td><td>con+<span class="kw">sist</span>(站)</td><td>Water consists of H and O.</td></tr>
+  <tr><td>environment</td><td>/ɪnˈvaɪrənmənt/</td><td>环境</td><td>environ(环绕)+ment</td><td>Protect the environment.</td></tr>
+  <tr><td>formula</td><td>/ˈfɔːmjələ/</td><td>公式、配方</td><td>form(形式)+ula</td><td>Learn the chemical formula.</td></tr>
+  <tr><td>individual</td><td>/ˌɪndɪˈvɪdʒuəl/</td><td>个人；个别的</td><td>in+<span class="kw">divid</span>(分)+ual</td><td>Each individual is unique.</td></tr>
+  <tr><td>issue</td><td>/ˈɪʃuː/</td><td>问题、议题；发行</td><td>谐「一羞」</td><td>This is a serious issue.</td></tr>
+  <tr><td>major</td><td>/ˈmeɪdʒə/</td><td>主要的；专业</td><td><span class="kw">maj</span>(大)+or；↔minor</td><td>This is a major problem.</td></tr>
+  <tr><td>period</td><td>/ˈpɪəriəd/</td><td>时期；句号</td><td>peri(周围)+od(路)</td><td>A long period of time.</td></tr>
+  <tr><td>significant</td><td>/sɪɡˈnɪfɪkənt/</td><td>重要的、显著的</td><td><span class="kw">sign</span>(记号)+ific+ant</td><td>A significant change occurred.</td></tr>
+  <tr><td>similar</td><td>/ˈsɪmɪlə/</td><td>相似的</td><td><span class="kw">simil</span>(相同)+ar</td><td>These two are similar.</td></tr>
+  <tr><td>specific</td><td>/spəˈsɪfɪk/</td><td>具体的、特定的</td><td><span class="kw">speci</span>(种类)+fic</td><td>Be more specific, please.</td></tr>
+  </table>
+
+  <h3>第 7 组 · Sublist 2 社区与治理（10 词）</h3>
+  <table><tr><th>单词</th><th>音标</th><th>释义</th><th>拆分 / 串记</th><th>造句</th></tr>
+  <tr><td>community</td><td>/kəˈmjuːnəti/</td><td>社区、群体</td><td>com(共)+mun(义务/服务)</td><td>The community organized a clean-up.</td></tr>
+  <tr><td>resident</td><td>/ˈrezɪdənt/</td><td>居民</td><td>re(回)+sid(坐)；串：reside / president</td><td>Local residents welcomed the park.</td></tr>
+  <tr><td>region</td><td>/ˈriːdʒən/</td><td>地区、区域</td><td>reg(统治/管辖)；串：regular / regulate</td><td>This region is known for its wine.</td></tr>
+  <tr><td>site</td><td>/saɪt/</td><td>地点、场所</td><td>sit(坐落)；串：situated</td><td>The site was chosen for the new school.</td></tr>
+  <tr><td><b>administration</b></td><td>/ədˌmɪnɪˈstreɪʃn/</td><td>行政、管理</td><td>ad+ministr(管理)；串：minister</td><td>The administration approved the plan.</td></tr>
+  <tr><td><b>commission</b></td><td>/kəˈmɪʃn/</td><td>委员会</td><td>com+miss(发送)；串：mission / transmit</td><td>A commission was set up to investigate.</td></tr>
+  <tr><td><b>regulations</b></td><td>/ˌreɡjuˈleɪʃənz/</td><td>法规、规章</td><td>reg(规则)+ul+ation+s；串：regulate</td><td>New safety regulations came into force.</td></tr>
+  <tr><td><b>security</b></td><td>/sɪˈkjʊərəti/</td><td>安全、保障</td><td>se(无)+cur(关心)；串：secure / cure</td><td>Airport security is very strict.</td></tr>
+  <tr><td><b>maintenance</b></td><td>/ˈmeɪntənəns/</td><td>维护、保养</td><td>main(手)+ten(持有)；串：maintain</td><td>Regular maintenance keeps the car safe.</td></tr>
+  <tr><td><b>institute</b></td><td>/ˈɪnstɪtjuːt/</td><td>机构、研究所</td><td>in+stitut(建立)；串：constitute / constitution</td><td>The institute studies climate change.</td></tr>
+  </table>
+</section>
+
+<!-- ============ 词根钥匙 ============ -->
+<section>
+  <h2>四、词根钥匙总表（成串记忆用）</h2>
+  <p class="muted">认识这些「钥匙」，一个词根能带走一串同族词。下表汇总第 1–7 组沉淀的全部词根。</p>
+  <table>
+    <tr><th>词根</th><th>含义</th><th>本包出现的词</th><th>还能带出的词</th></tr>
+    <tr><td><span class="kw">fin</span></td><td>了结 / 边界</td><td>financial, definition</td><td>final, finish, define</td></tr>
+    <tr><td><span class="kw">tribute</span></td><td>给予 / 进贡</td><td>distribution</td><td>contribute, attribute</td></tr>
+    <tr><td><span class="kw">sect</span></td><td>切</td><td>sector, section</td><td>insect, intersect</td></tr>
+    <tr><td><span class="kw">port</span></td><td>港口 / 搬运</td><td>export</td><td>import, transport</td></tr>
+    <tr><td><span class="kw">cent</span></td><td>百</td><td>percent</td><td>century, centimetre</td></tr>
+    <tr><td><span class="kw">nom</span></td><td>管理</td><td>economic</td><td>economy, astronomy</td></tr>
+    <tr><td><span class="kw">vid / vis</span></td><td>看</td><td>evidence</td><td>video, vision, visible</td></tr>
+    <tr><td><span class="kw">fact</span></td><td>做</td><td>factors</td><td>factory, fact</td></tr>
+    <tr><td><span class="kw">vari</span></td><td>变</td><td>variables</td><td>various, vary</td></tr>
+    <tr><td><span class="kw">sess / sit</span></td><td>坐</td><td>assessment</td><td>session, possess</td></tr>
+    <tr><td><span class="kw">inter</span></td><td>在…之间</td><td>interpretation</td><td>international, interact</td></tr>
+    <tr><td><span class="kw">leg / lex</span></td><td>法</td><td>legal, legislation</td><td>legitimate, lexicon</td></tr>
+    <tr><td><span class="kw">tract</span></td><td>拉</td><td>contract</td><td>attract, extract, tractor</td></tr>
+    <tr><td><span class="kw">stitut</span></td><td>建立</td><td>constitutional</td><td>constitute, institute</td></tr>
+    <tr><td><span class="kw">prin / prim</span></td><td>第一</td><td>principle</td><td>prince, prime, primary</td></tr>
+    <tr><td><span class="kw">quire / quisit</span></td><td>寻求</td><td>required</td><td>inquire, acquire</td></tr>
+    <tr><td><span class="kw">author</span></td><td>创作 / 权威</td><td>authority</td><td>author, authorize</td></tr>
+    <tr><td><span class="kw">cept / cip</span></td><td>抓 / 拿</td><td>concept</td><td>accept, reception, principle</td></tr>
+    <tr><td><span class="kw">struct</span></td><td>建</td><td>structure</td><td>construct, instruct</td></tr>
+    <tr><td><span class="kw">ced / cess / ceed</span></td><td>走</td><td>procedure, process</td><td>proceed, exceed, access</td></tr>
+    <tr><td><span class="kw">text</span></td><td>文本 / 编织</td><td>context</td><td>text, textile</td></tr>
+    <tr><td><span class="kw">pro</span></td><td>向前</td><td>procedure, process</td><td>promote, progress</td></tr>
+    <tr><td><span class="kw">dic / dict</span></td><td>说</td><td>indicate</td><td>dictionary, predict, dictate</td></tr>
+    <tr><td><span class="kw">volve / volu</span></td><td>卷</td><td>involve</td><td>revolve, evolve, volume</td></tr>
+    <tr><td><span class="kw">sume / sumpt</span></td><td>拿</td><td>assume</td><td>consume, resume, presume</td></tr>
+    <tr><td><span class="kw">cur / curs</span></td><td>跑</td><td>occur</td><td>current, cursor, excursion</td></tr>
+    <tr><td><span class="kw">spond / spons</span></td><td>回答 / 承诺</td><td>respond</td><td>response, sponsor, responsible</td></tr>
+    <tr><td><span class="kw">stabl / sta</span></td><td>站 / 稳</td><td>establish</td><td>stable, station, status</td></tr>
+    <tr><td><span class="kw">sist / sta</span></td><td>站</td><td>consist</td><td>assist, insist, resist</td></tr>
+    <tr><td><span class="kw">vail / val</span></td><td>价值 / 强</td><td>available</td><td>value, valid, evaluate</td></tr>
+    <tr><td><span class="kw">divid</span></td><td>分</td><td>individual</td><td>divide, division</td></tr>
+    <tr><td><span class="kw">sign</span></td><td>记号</td><td>significant</td><td>signal, signature, design</td></tr>
+    <tr><td><span class="kw">speci</span></td><td>种类</td><td>specific</td><td>species, special, especially</td></tr>
+    <tr><td><span class="kw">simil / sembl</span></td><td>相同</td><td>similar</td><td>assemble, resemble</td></tr>
+    <tr><td><span class="kw">mun</span></td><td>义务 / 服务</td><td>community</td><td>communicate, common, communism</td></tr>
+    <tr><td><span class="kw">sid / sit</span></td><td>坐</td><td>resident, site</td><td>reside, residence, president</td></tr>
+    <tr><td><span class="kw">reg</span></td><td>统治 / 规则</td><td>region, regulations</td><td>regular, regulate, reign</td></tr>
+    <tr><td><span class="kw">ministr</span></td><td>服务 / 管理</td><td>administration</td><td>minister, administer</td></tr>
+    <tr><td><span class="kw">miss / mit</span></td><td>发送</td><td>commission</td><td>mission, transmit, submit</td></tr>
+    <tr><td><span class="kw">cur</span></td><td>关心 / 照顾</td><td>security</td><td>secure, cure, curious, accurate</td></tr>
+    <tr><td><span class="kw">ten</span></td><td>持有</td><td>maintenance</td><td>maintain, tenant, tenable</td></tr>
+    <tr><td><span class="kw">stitut</span></td><td>建立</td><td>institute</td><td>constitute, constitution, institution</td></tr>
+  </table>
+</section>
+
+<!-- ============ 需求与迁移 ============ -->
+<section class="migrate">
+  <h2>五、需求记录 & 二台电脑迁移指南</h2>
+
+  <h3>① 你提过的主要需求（已落地）</h3>
+  <table><tr><th>#</th><th>需求</th><th>落地方式</th></tr>
+  <tr><td>1</td><td>找 AWL 权威免费资料并下载背词</td><td>确认 Coxhead(2000) 原版；生成 570 词中英对照/打印表/Anki CSV</td></tr>
+  <tr><td>2</td><td>背词要有翻译+音标+多种记忆法（拆分/谐音/造句自选）</td><td>每组讲解均含音标 + 拆分/谐音/造句多法</td></tr>
+  <tr><td>3</td><td>要深色两列表格 PNG 图片辅助记忆（复刻截图风）</td><td>第1–7组_记忆表.png（黑底#0e1116、难词加粗高亮）</td></tr>
+  <tr><td>4</td><td>能导入网易有道单词本，按顺序听音标+发音</td><td>有道单词本导入_AWL全部.xml / .txt + 浏览器发音网页</td></tr>
+  <tr><td>5</td><td>按 PDF 的 Sublist 顺序背，避免遗漏</td><td>每背几组核对覆盖度 → 第6组补漏 12 词，Sublist 1 完整 60/60</td></tr>
+  <tr><td>6</td><td>发音网站：读中文释义、只读最常用的一个、语速快、间隔短、可指定起点</td><td>均已实现（读中文开关、语速1.0、间隔150ms、点行选起点）</td></tr>
+  <tr><td>7</td><td>所有内容迁移到个人电脑并保存之前的内容</td><td>本迁移包（本文件 + 原始资料 + 记忆与工作流）</td></tr>
+  </table>
+
+  <h3>② 二台电脑如何「接上记忆、继续任务」</h3>
+  <div class="note"><b class="wn">重要：</b>WorkBuddy 的「记忆」和「技能」存在本机特定路径。换电脑后需手动把 <span class="code" style="display:inline;padding:1px 6px">记忆与工作流/</span> 里的文件放回对应位置，AI 才能「想得起」之前的约定。</div>
+
+  <h3>步骤 1 · 复制整个迁移包</h3>
+  <p>把 <b>AWL背词_迁移包/</b> 整个文件夹拷到二台电脑任意位置（U 盘 / 网盘 / 微信文件传输助手均可）。<b>本文件 AWL学习总览.html 可独立使用，无需任何依赖。</b></p>
+
+  <h3>步骤 2 · 恢复「记忆」（让 AI 记得你）</h3>
+  <p>若二台电脑也装了 WorkBuddy，把以下内容放回：</p>
+  <div class="code">记忆与工作流/2026-08-01.md
+  → 复制到  &lt;你的Workspace&gt;/.workbuddy/memory/2026-08-01.md
+
+记忆与工作流/vocab-memory-batch/
+  → 复制到  C:/Users/&lt;你&gt;/.workbuddy/skills/vocab-memory-batch/</div>
+  <p class="muted">放回后，新对话里只要说「继续背 AWL」「第7组 / Sublist 2」，AI 就能接着节奏走（讲解→记录本→图片→发音网页/有道文件）。</p>
+
+  <h3>步骤 3 · 继续加单词（可选，需 Python）</h3>
+  <p>若要继续往后背（如 Sublist 2），改 <span class="code" style="display:inline;padding:1px 6px">原始资料/gen_youdao_and_audio.py</span> 里的 <span class="code" style="display:inline;padding:1px 6px">words</span> 列表加上新词，重跑即可重新生成发音网页 + 有道文件：</p>
+  <div class="code">python gen_youdao_and_audio.py</div>
+  <p class="muted">Pillow 仅生成 PNG 图卡时需要（Python + pip install Pillow）。发音网页和有道文件仅需 Python 标准库。</p>
+
+  <h3>步骤 4 · 网易有道单词本导入（复习发音）</h3>
+  <ol>
+    <li>电脑端：有道词典 → 左侧「单词本」→ 齿轮「导入/导出」→ 选 <b>有道单词本导入_AWL全部.xml</b></li>
+    <li>手机端：先试 .xml，失败换 .txt（部分版本路径：「我的」→「单词本」→「导入」）</li>
+    <li>导入后每个词可点发音、切卡片/复习模式（有道真人发音为在线现查，拼写对即可）</li>
+    <li>记得登录有道账号，否则卸载会丢数据</li>
+  </ol>
+
+  <div class="card" style="margin-top:18px">
+    <h3 style="margin-top:0">下一步建议</h3>
+    <p>Sublist 1 与 Sublist 2 全部 120 词已加入<b>单词本</b>（核心复习入口）。Sublist 2 第 7 组（社区与治理）已完整讲解；第 8–13 组（经济与资源、研究与评估、结构与要素、动作与影响、文化与规范、文本与限定）待逐组讲解。随时说「背第 8 组」即可接上固定节奏。</p>
+  </div>
+</section>
+
+<footer>AWL 学习总览 · 单文件迁移版 · 离线可用 · 数据截至 2026-09-30（Sublist 1 全 60 词 + Sublist 2 全 60 词 + Sublist 3 全 60 词 + 交大图书馆 101 词，共 281 词）</footer>
+
+<script>
+/* ---------- Tab 切换（单词本为默认首项） ---------- */
+const TAB_ORDER=[1,0,2,3,4]; // 导航顺序对应 section 索引：单词本,概览,背词记录,词根钥匙,需求与迁移
+function tab(k){
+  const secIdx=TAB_ORDER[k];
+  document.querySelectorAll('nav button').forEach((b,i)=>b.classList.toggle('active',i===k));
+  document.querySelectorAll('section').forEach((s,i)=>s.classList.toggle('active',i===secIdx));
+  if(secIdx===1) buildList();
+}
+/* ---------- 发音播放器数据（120 词，按组） ---------- */
+const RAW=[
+ ["financial","/faɪˈnænʃl/","财政的、金融的",1],
+ ["economic","/ˌiːkəˈnɒmɪk/","经济的",1],
+ ["income","/ˈɪnkʌm/","收入",1],
+ ["benefit","/ˈbenɪfɪt/","好处、利益",1],
+ ["labour","/ˈleɪbə/","劳动、劳工",1],
+ ["export","/ɪkˈspɔːt/","出口",1],
+ ["distribution","/ˌdɪstrɪˈbjuːʃn/","分布、分发",1],
+ ["percent","/pəˈsent/","百分比",1],
+ ["sector","/ˈsektə/","部门、领域、扇区",1],
+ ["research","/rɪˈsɜːtʃ/","研究",2],
+ ["data","/ˈdeɪtə/","数据",2],
+ ["analysis","/əˈnæləsɪs/","分析",2],
+ ["method","/ˈmeθəd/","方法",2],
+ ["assessment","/əˈsesmənt/","评估",2],
+ ["estimate","/ˈestɪmeɪt/","估计",2],
+ ["theory","/ˈθɪəri/","理论",2],
+ ["evidence","/ˈevɪdəns/","证据",2],
+ ["interpretation","/ɪnˌtɜːprɪˈteɪʃn/","解释、诠释",2],
+ ["definition","/ˌdefɪˈnɪʃn/","定义",2],
+ ["variables","/ˈveəriəblz/","变量",2],
+ ["factors","/ˈfæktəz/","因素",2],
+ ["legal","/ˈliːɡl/","合法的、法律的",3],
+ ["constitutional","/ˌkɒnstɪˈtjuːʃənl/","宪法的、章程的",3],
+ ["legislation","/ˌledʒɪsˈleɪʃn/","立法、法规",3],
+ ["contract","/ˈkɒntrækt/","合同；收缩",3],
+ ["policy","/ˈpɒləsi/","政策、方针",3],
+ ["authority","/ɔːˈθɒrəti/","权威、当局",3],
+ ["required","/rɪˈkwaɪəd/","必需的",3],
+ ["principle","/ˈprɪnsəpl/","原则、原理",3],
+ ["concept","/ˈkɒnsept/","概念",4],
+ ["structure","/ˈstrʌktʃə/","结构；构建",4],
+ ["section","/ˈsekʃn/","部分、章节",4],
+ ["context","/ˈkɒntekst/","语境、背景",4],
+ ["procedure","/prəˈsiːdʒə/","程序、步骤",4],
+ ["process","/ˈprəʊses/","过程；处理",4],
+ ["approach","/əˈprəʊtʃ/","方法、途径；接近",4],
+ ["function","/ˈfʌŋkʃn/","功能；运作",4],
+ ["role","/rəʊl/","角色、作用",4],
+ ["source","/sɔːs/","来源、出处",4],
+ ["create","/kriˈeɪt/","创造",5],
+ ["derive","/dɪˈraɪv/","得出、源于",5],
+ ["identify","/aɪˈdentɪfaɪ/","识别、确定",5],
+ ["assume","/əˈsjuːm/","假定、认为",5],
+ ["occur","/əˈkɜː/","发生",5],
+ ["indicate","/ˈɪndɪkeɪt/","表明、指示",5],
+ ["respond","/rɪˈspɒnd/","回应",5],
+ ["involve","/ɪnˈvɒlv/","涉及、包含",5],
+ ["establish","/ɪˈstæblɪʃ/","建立、确立",5],
+ ["area","/ˈeəriə/","区域、领域",6],
+ ["available","/əˈveɪləbl/","可获得的、可用的",6],
+ ["consist","/kənˈsɪst/","由…组成",6],
+ ["environment","/ɪnˈvaɪrənmənt/","环境",6],
+ ["formula","/ˈfɔːmjələ/","公式、配方",6],
+ ["individual","/ˌɪndɪˈvɪdʒuəl/","个人；个别的",6],
+ ["issue","/ˈɪʃuː/","问题、议题；发行",6],
+ ["major","/ˈmeɪdʒə/","主要的；专业",6],
+ ["period","/ˈpɪəriəd/","时期；句号",6],
+ ["significant","/sɪɡˈnɪfɪkənt/","重要的、显著的",6],
+ ["similar","/ˈsɪmɪlə/","相似的",6],
+ ["specific","/spəˈsɪfɪk/","具体的、特定的",6],
+ ["community","/kəˈmjuːnəti/","社区、群体",7],
+ ["resident","/ˈrezɪdənt/","居民",7],
+ ["region","/ˈriːdʒən/","地区、区域",7],
+ ["site","/saɪt/","地点、场所",7],
+ ["administration","/ədˌmɪnɪˈstreɪʃn/","行政、管理",7],
+ ["commission","/kəˈmɪʃn/","委员会",7],
+ ["regulations","/ˌreɡjuˈleɪʃənz/","法规、规章",7],
+ ["security","/sɪˈkjʊərəti/","安全、保障",7],
+ ["maintenance","/ˈmeɪntənəns/","维护、保养",7],
+ ["institute","/ˈɪnstɪtjuːt/","机构、研究所",7],
+ ["consumer","/kənˈsjuːmə(r)/","消费者",8],
+ ["purchase","/ˈpɜːtʃəs/","购买",8],
+ ["credit","/ˈkredɪt/","信用、学分",8],
+ ["investment","/ɪnˈvestmənt/","投资",8],
+ ["acquisition","/ˌækwɪˈzɪʃn/","获得、收购",8],
+ ["potential","/pəˈtenʃl/","潜在的、潜力",8],
+ ["resources","/rɪˈsɔːsɪz/","资源",8],
+ ["assistance","/əˈsɪstəns/","协助、援助",8],
+ ["survey","/ˈsɜːveɪ/","调查",9],
+ ["evaluation","/ɪˌvæljuˈeɪʃn/","评估、评价",9],
+ ["conclusion","/kənˈkluːʒn/","结论",9],
+ ["journal","/ˈdʒɜːnl/","期刊、日记",9],
+ ["positive","/ˈpɒzətɪv/","积极的、正面的",9],
+ ["perceived","/pəˈsiːvd/","感知到的",9],
+ ["relevant","/ˈreləvənt/","相关的",9],
+ ["focus","/ˈfəʊkəs/","焦点、聚焦",9],
+ ["strategies","/ˈstrætədʒiz/","策略",9],
+ ["construction","/kənˈstrʌkʃn/","建造、建设",10],
+ ["elements","/ˈelɪmənts/","要素、元素",10],
+ ["features","/ˈfiːtʃəz/","特征、特点",10],
+ ["aspects","/ˈæspekts/","方面",10],
+ ["categories","/ˈkætəɡəriz/","类别",10],
+ ["range","/reɪndʒ/","范围、区间",10],
+ ["complex","/ˈkɒmpleks/","复杂的",10],
+ ["design","/dɪˈzaɪn/","设计",10],
+ ["obtained","/əbˈteɪnd/","获得",10],
+ ["select","/sɪˈlekt/","选择、挑选",11],
+ ["sought","/sɔːt/","寻求",11],
+ ["achieve","/əˈtʃiːv/","实现、达成",11],
+ ["affect","/əˈfekt/","影响",11],
+ ["impact","/ˈɪmpækt/","影响",11],
+ ["consequences","/ˈkɒnsɪkwənsɪz/","后果",11],
+ ["injury","/ˈɪndʒəri/","伤害、损伤",11],
+ ["conduct","/kənˈdʌkt/","进行、实施",11],
+ ["transfer","/trænsˈfɜː(r)/","转移、转让",11],
+ ["cultural","/ˈkʌltʃərəl/","文化的",12],
+ ["traditional","/trəˈdɪʃənl/","传统的",12],
+ ["participation","/pɑːˌtɪsɪˈpeɪʃn/","参与",12],
+ ["normal","/ˈnɔːml/","正常的",12],
+ ["appropriate","/əˈprəʊpriət/","适当的",12],
+ ["distinction","/dɪˈstɪŋkʃn/","区别、差别",12],
+ ["computer","/kəmˈpjuːtə(r)/","计算机",12],
+ ["items","/ˈaɪtəmz/","项目、条目",12],
+ ["text","/tekst/","文本、正文",13],
+ ["chapter","/ˈtʃæptə(r)/","章、章节",13],
+ ["equation","/ɪˈkweɪʒn/","方程、等式",13],
+ ["previous","/ˈpriːviəs/","先前的、以前的",13],
+ ["final","/ˈfaɪnl/","最终的、最后的",13],
+ ["primary","/ˈpraɪməri/","主要的、初级的",13],
+ ["restricted","/rɪˈstrɪktɪd/","受限的、限制的",13],
+ ["alternative","/ɔːlˈtɜːnətɪv/","n./adj. 替代方案；可选的",14],
+ ["circumstance","/ˈsɜːkəmstəns/","n. 情况、环境",14],
+ ["comment","/ˈkɒment/","n./v. 评论",14],
+ ["compensate","/ˈkɒmpenseɪt/","v. 补偿",14],
+ ["component","/kəmˈpəʊnənt/","n. 组成部分",14],
+ ["consent","/kənˈsent/","n./v. 同意",14],
+ ["considerable","/kənˈsɪdərəbl/","adj. 相当大的",14],
+ ["constant","/ˈkɒnstənt/","adj. 恒定的、不断的",14],
+ ["constrain","/kənˈstreɪn/","v. 约束、限制",14],
+ ["contribute","/kənˈtrɪbjuːt/","v. 贡献、促成",14],
+ ["convene","/kənˈviːn/","v. 召集、集会",14],
+ ["coordinate","/kəʊˈɔːdɪneɪt/","v. 协调",14],
+ ["core","/kɔː(r)/","n./adj. 核心",14],
+ ["corporate","/ˈkɔːpərət/","adj. 公司的、法人的",14],
+ ["correspond","/ˌkɒrəˈspɒnd/","v. 相符；通信",14],
+ ["criteria","/kraɪˈtɪəriə/","n. 标准（复数）",15],
+ ["deduce","/dɪˈdjuːs/","v. 推断",15],
+ ["demonstrate","/ˈdemənstreɪt/","v. 证明、演示",15],
+ ["document","/ˈdɒkjumənt/","n. 文件；v. 记录",15],
+ ["dominate","/ˈdɒmɪneɪt/","v. 支配、主导",15],
+ ["emphasis","/ˈemfəsɪs/","n. 强调、重点",15],
+ ["ensure","/ɪnˈʃʊə(r)/","v. 确保",15],
+ ["exclude","/ɪkˈskluːd/","v. 排除",15],
+ ["framework","/ˈfreɪmwɜːk/","n. 框架",15],
+ ["fund","/fʌnd/","n./v. 资金；资助",15],
+ ["illustrate","/ˈɪləstreɪt/","v. 说明、举例",15],
+ ["immigrate","/ˈɪmɪɡreɪt/","v. 移入",15],
+ ["imply","/ɪmˈplaɪ/","v. 暗示",15],
+ ["initial","/ɪˈnɪʃl/","adj. 最初的",15],
+ ["instance","/ˈɪnstəns/","n. 实例",15],
+ ["interact","/ˌɪntərˈækt/","v. 互动",16],
+ ["justify","/ˈdʒʌstɪfaɪ/","v. 证明……正当",16],
+ ["layer","/ˈleɪə(r)/","n. 层",16],
+ ["link","/lɪŋk/","n./v. 联系、连接",16],
+ ["locate","/ləʊˈkeɪt/","v. 定位、位于",16],
+ ["maximise","/ˈmæksɪmaɪz/","v. 最大化",16],
+ ["minor","/ˈmaɪnə(r)/","adj. 次要的、较小的",16],
+ ["negate","/nɪˈɡeɪt/","v. 否定、取消",16],
+ ["outcome","/ˈaʊtkʌm/","n. 结果",16],
+ ["partner","/ˈpɑːtnə(r)/","n. 伙伴",16],
+ ["philosophy","/fəˈlɒsəfi/","n. 哲学",16],
+ ["physical","/ˈfɪzɪkl/","adj. 物理的、身体的",16],
+ ["proportion","/prəˈpɔːʃn/","n. 比例",16],
+ ["publish","/ˈpʌblɪʃ/","v. 出版、发表",16],
+ ["react","/riˈækt/","v. 反应",16],
+ ["register","/ˈredʒɪstə(r)/","v./n. 登记；语域",17],
+ ["rely","/rɪˈlaɪ/","v. 依赖",17],
+ ["remove","/rɪˈmuːv/","v. 移除",17],
+ ["scheme","/skiːm/","n. 方案、计划",17],
+ ["sequence","/ˈsiːkwəns/","n. 顺序、序列",17],
+ ["sex","/seks/","n. 性别",17],
+ ["shift","/ʃɪft/","n./v. 转变、轮班",17],
+ ["specify","/ˈspesɪfaɪ/","v. 明确说明",17],
+ ["sufficient","/səˈfɪʃnt/","adj. 足够的",17],
+ ["task","/tɑːsk/","n. 任务",17],
+ ["technical","/ˈteknɪkl/","adj. 技术的",17],
+ ["technique","/tekˈniːk/","n. 技巧、技术",17],
+ ["technology","/tekˈnɒlədʒi/","n. 技术、科技",17],
+ ["valid","/ˈvælɪd/","adj. 有效的、合理的",17],
+ ["volume","/ˈvɒljuːm/","n. 体积、卷、音量",17],
+ ["universally","/ˌjunəˈvərsəli/","普遍地",30],
+ ["minority","/məˈnɔrəti/","少数，少数民族",30],
+ ["acknowledged","/ækˈnɑlɪʤd/","公认的",30],
+ ["enslave","/ɛnsˈleɪv/","使成为奴隶；奴役",30],
+ ["descendant","/dɪˈsɛndənt/","后代，后裔",30],
+ ["authoritative","/əˈθɔrəˌteɪtɪv/","权威",30],
+ ["waves","/weɪvz/","潮，波",30],
+ ["grant","/grænt/","授予",30],
+ ["ethnic","/ˈɛθnɪk/","种族",30],
+ ["prejudice","/ˈprɛʤədɪs/","偏见",30],
+ ["census","/ˈsɛnsəs/","人口普查",30],
+ ["outcomer","/outcomer*/","外来者",30],
+ ["comparison","/kəmˈpɛrəsən/","比喻，比较",30],
+ ["warfare","/ˈwɔrˌfɛr/","战争",30],
+ ["permanent","/ˈpərmɑˌnɛnt/","永久的",30],
+ ["decrease","/ˈdiˌkris/","下降",30],
+ ["forefather","/ˈfɔrˌfɑðər/","祖先，先辈",30],
+ ["boundary","/ˈbaʊndəri/","国界线，边界",30],
+ ["origin","/ˈɔrəʤən/","血统，来源",30],
+ ["beyond","/bɪɔnd/","在…另一边",30],
+ ["deceive","/dɪˈsiv/","欺骗",30],
+ ["insurance","/ˌɪnˈʃʊrəns/","保险",30],
+ ["foreman","/ˈfɔrmən/","工头，领班",30],
+ ["substitute","/ˈsəbstəˌtut/","代名词，替代品",30],
+ ["afford","/əˈfɔrd/","负担得起",30],
+ ["terrorist","/ˈtɛrərɪst/","恐怖分子",30],
+ ["first-rate","/ˌfərˈstreɪt/","一流的",30],
+ ["restore","/rɪˈstɔr/","恢复",30],
+ ["harbor","/ˈhɑrbər/","港口",30],
+ ["bird's-eye view","/bird's-eye* vju/","鸟瞰",30],
+ ["navigator","/ˈnævəˌgeɪtər/","航海家",30],
+ ["headquarters","/ˈhɛdˌkɔrtərz/","总部",30],
+ ["fur","/fər/","毛皮，皮毛",30],
+ ["neon","/niɑn/","霓虹",30],
+ ["prosperous","/ˈprɑspərəs/","繁荣的",30],
+ ["towering","/ˈtaʊrɪŋ/","参天的",30],
+ ["labyrinth","/ˈlæbərˌɪnθ/","迷宫",30],
+ ["wretched","/ˈrɛʧɪd/","悲惨的",30],
+ ["demarcation","/ˌdimɑrˈkeɪʃən/","分界",30],
+ ["slum","/sləm/","贫民窟",30],
+ ["bronze","/brɑnz/","青铜",30],
+ ["democratic","/ˌdɛməˈkrætɪk/","民主的",30],
+ ["munition","/mjuˈnɪʃən/","军火，军需品",30],
+ ["poet","/poʊət/","诗人",30],
+ ["revolution of independence","/ˌrɛvəˈluʃən əv ˌɪndɪˈpɛndəns/","独立战争",30],
+ ["seaport","/ˈsiˌpɔrt/","海港",30],
+ ["oath","/oʊθ/","宣誓",30],
+ ["metropolis","/məˈtrɑpələs/","大都市",30],
+ ["symbol","/ˈsɪmbəl/","象征，标志",30],
+ ["set out","/sɛt aʊt/","出发",30],
+ ["sink","/sɪŋk/","水槽，下沉，落",30],
+ ["inhabitant","/ˌɪnˈhæbɪtənt/","居民",30],
+ ["liberty","/ˈlɪbərˌti/","自由，自由权",30],
+ ["oppression","/əˈprɛʃən/","压迫",30],
+ ["stand up","/stænd əp/","站立，落成",30],
+ ["vanguard","/ˈvænˌgɑrd/","先锋",30],
+ ["chemistry","/ˈkɛmɪstri/","化学工艺",30],
+ ["cradle","/ˈkreɪdəl/","摇篮",30],
+ ["revolution","/ˌrɛvəˈluʃən/","革命",30],
+ ["collision","/kəˈlɪʒən/","冲突",30],
+ ["dump","/dəmp/","倾倒，丢弃",30],
+ ["set back","/sɛt bæk/","挫折",30],
+ ["textile","/ˈtɛkˌstaɪl/","纺织",30],
+ ["capture","/ˈkæpʧər/","攻占",30],
+ ["sophisticated","/səˈfɪstɪˌkeɪtəd/","精密复杂的",30],
+ ["revel","/ˈrɛvəl/","狂欢作乐",30],
+ ["submarine","/ˌsəbmərˈin/","潜水艇",30],
+ ["evacuate","/ɪˈvækjəˌeɪt/","撤离",30],
+ ["intellectual","/ˌɪnəˈlɛkʧuəl/","知识",30],
+ ["wax","/wæks/","蜡",30],
+ ["elementary","/ˌɛləˈmɛnʧri/","基础的，基础教育",30],
+ ["federal","/ˈfɛdərəl/","联邦",30],
+ ["satellite","/ˈsætəˌlaɪt/","卫星",30],
+ ["foremost","/ˈfɔrˌmoʊst/","顶尖的",30],
+ ["vitality","/vaɪˈtæləti/","活力",30],
+ ["ridicule","/ˈrɪdəˌkjul/","嘲笑",30],
+ ["thriving","/θˈraɪvɪŋ/","兴旺繁荣的",30],
+ ["in memory of","/ɪn ˈmɛməri əv/","纪念……",30],
+ ["dynamic","/daɪˈnæmɪk/","充满活力的",30],
+ ["burn down","/bərn daʊn/","烧毁",30],
+ ["painfully","/ˈpeɪnfəli/","艰难的",30],
+ ["excerpt","/ˈɛksərpt/","摘录，选段",30],
+ ["mosquito","/məˈskitoʊ/","蚊子",30],
+ ["burst into bloom","/bərst ˈɪntu blum/","鲜花怒放",30],
+ ["suburb","/ˈsəbərb/","郊区",30],
+ ["Constitution","/ˌkɑnstəˈtuʃən/","宪法",30],
+ ["urban","/ˈərbən/","城市",30],
+ ["commercial","/kəˈmərʃəl/","商业的",30],
+ ["residence","/ˈrɛzɪdəns/","居民，住所",30],
+ ["a mad rush of","/ə mæd rəʃ əv/","成群涌入",30],
+ ["elaborate","/ɪˈlæbərˌeɪt/","精心制作的",30],
+ ["Gold Rush","/goʊld rəʃ/","淘金热",30],
+ ["Renaissance","/ˌrɛnəˈsɑns/","文艺复兴",30],
+ ["split","/splɪt/","分裂",30],
+ ["distinctive","/dɪˈstɪŋktɪv/","独特，有辨识度",30],
+ ["crash","/kræʃ/","倒塌",30],
+ ["represent","/ˌrɛprɪˈzɛnt/","代表，象征",30],
+ ["ruin","/ruɪn/","废墟",30],
+ ["status","/ˈstætəs/","地位",30],
+ ["tongue","/təŋ/","舌；狭长陆地",30],
+ ["statue","/ˈstæˌʧu/","雕像",30],
+];
+function sublistOf(g){ if(g<=6)return "sl1"; if(g<=13)return "sl2"; if(g<=17)return "sl3"; return "lib"; }
+function sublistLabel(g){ if(g<=6)return "Sublist 1"; if(g<=13)return "Sublist 2"; if(g<=17)return "Sublist 3"; return "交大图书馆"; }
+const built=new Set();
+function buildList(){
+  const ul=document.getElementById('plist');
+  if(built.has('ok'))return; built.add('ok');
+  let html='';
+  RAW.forEach((r,i)=>{
+    const [w,ph,tr,g]=r;
+    const sl=sublistOf(g);
+    const cn=tr.split(/[、；;，]/)[0].replace(/^[a-zA-Z./]+\s*/,'');
+    html+=`<li data-w="${w}" data-tr="${cn}" data-i="${i}" data-sl="${sl}" onclick="pick(this)">`+
+      `<button class="say" onclick="say(event,this)">▶</button>`+
+      `<span class="w">${w}</span><span class="ph">${ph}</span><span class="tr">${tr}</span></li>`;
+  });
+  ul.innerHTML=html;
+  renderCustom2();
+  const sel=document.getElementById('grpSel2');
+  if(sel && sel.options.length<=1){
+    sel.innerHTML='<option value="all">跳转 Sublist（全部）</option>'+
+      '<option value="sl1">Sublist 1（60词）</option>'+
+      '<option value="sl2">Sublist 2（60词）</option>'+
+      '<option value="sl3">Sublist 3（60词）</option>'+
+      '<option value="lib">交通大学图书馆收集的单词（101词）</option>';
+  }
+}
+/* ---------- 发音：优先播放电脑预录音频（与手机完全一致），无录音则降级浏览器合成 ---------- */
+let rate=1.2, rates=[1.0,0.85,1.2], rn=2, ratesLabel=["正常","慢速","快速"];
+let cnVoices=[], timer=null, readCn=true, startIdx=0, audioOK=true;
+const AUDIO_BASE="audio/";
+const au=document.getElementById("au");
+function loadCnVoices(){ let all=speechSynthesis.getVoices(); cnVoices=all.filter(v=>/zh|cmn/i.test(v.lang)); }
+speechSynthesis.onvoiceschanged=loadCnVoices; loadCnVoices();
+function playAudio(w,cb){
+  let done=false;
+  function ok(){ if(done)return; done=true; if(cb)cb(); }
+  function fb(){ if(done)return; done=true; fallbackSpeak(w,cb); }
+  au.playbackRate=rate;
+  au.onended=ok;
+  au.onerror=fb;
+  au.src=AUDIO_BASE+encodeURIComponent(w)+".mp3";
+  let p=au.play();
+  if(p&&p.catch) p.catch(fb);
+  setTimeout(function(){ if(!done){ done=true; fallbackSpeak(w,cb); } }, 2600);
+}
+function fallbackSpeak(w,cb){
+  try{
+    try{ speechSynthesis.cancel(); }catch(e){}
+    let u=new SpeechSynthesisUtterance(w);
+    u.lang="en-GB"; u.rate=rate;
+    let ev=speechSynthesis.getVoices().filter(v=>/en[-_]?GB/i.test(v.lang));
+    if(!ev.length) ev=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
+    if(ev.length) u.voice=ev[0];
+    if(cb){ u.onend=cb; u.onerror=cb; }
+    speechSynthesis.speak(u);
+  }catch(e){ if(cb)cb(); }
+}
+function speakCn(text,cb){
+  try{
+    let u=new SpeechSynthesisUtterance(text);
+    u.lang="zh-CN"; u.rate=1.0;
+    if(cnVoices.length) u.voice=cnVoices[0];
+    if(cb)u.onend=cb;
+    speechSynthesis.speak(u);
+  }catch(e){ if(cb)cb(); }
+}
+function sayWord(li,cb){
+  let w=li.dataset.w, tr=li.dataset.tr;
+  playAudio(w,function(){
+    if(readCn && tr){ timer=setTimeout(function(){ if(seqPlaying){ speakCn(tr,cb); } else { if(cb)cb(); } },150); }
+    else { if(cb)cb(); }
+  });
+}
+function say(ev,btn){ ev.stopPropagation(); let li=btn.closest("li"); if(seqPlaying) pauseSeq(); highlight(li); try{speechSynthesis.cancel();}catch(e){} try{au.pause();au.currentTime=0;}catch(e){} sayWord(li); }
+function pick(li){
+  let items=[...document.querySelectorAll("#plist li.row")];
+  startIdx=items.indexOf(li); highlight(li);
+  document.getElementById("startHint").textContent="从 "+(startIdx+1)+". "+li.dataset.w+" 开始";
+}
+function highlight(li){
+  document.querySelectorAll("#plist li").forEach(x=>x.classList.remove("on"));
+  if(li){li.classList.add("on"); li.scrollIntoView({block:"center",behavior:"smooth"});}
+}
+let seqPlaying=false, seqPaused=false, seqPos=0, seqTimer=null;
+function updatePlayBtn(){
+  let b=document.getElementById("playBtn2");
+  if(!b) return;
+  if(seqPlaying) b.textContent="⏸ 暂停";
+  else if(seqPaused) b.textContent="▶ 继续";
+  else b.textContent="▶ 开始";
+}
+function stepSeq(){
+  let items=[...document.querySelectorAll("#plist li")].filter(x=>x.classList.contains("row"));
+  if(seqPos>=items.length){ seqPlaying=false; seqPaused=false; updatePlayBtn(); highlight(null); return; }
+  let li=items[seqPos++]; highlight(li);
+  sayWord(li, function(){ if(!seqPlaying) return; seqTimer=setTimeout(stepSeq,200); });
+}
+function playAll(){
+  try{speechSynthesis.cancel();}catch(e){}
+  try{au.pause();au.currentTime=0;}catch(e){}
+  if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer);
+  let items=[...document.querySelectorAll("#plist li")].filter(x=>x.classList.contains("row"));
+  if(!items.length) return;
+  seqPos=startIdx; seqPlaying=true; seqPaused=false; updatePlayBtn();
+  stepSeq();
+}
+function pauseSeq(){ if(seqPlaying){ seqPlaying=false; seqPaused=true; try{au.pause();}catch(e){} try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); updatePlayBtn(); } }
+function resumeSeq(){ if(seqPaused){ seqPaused=false; seqPlaying=true; updatePlayBtn(); stepSeq(); } }
+function togglePlay(){ if(seqPlaying) pauseSeq(); else if(seqPaused) resumeSeq(); else playAll(); }
+function stopAll(){ seqPlaying=false; seqPaused=false; try{au.pause();au.currentTime=0;}catch(e){} try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); highlight(null); updatePlayBtn(); }
+function jumpGroup2(g){
+  let items=[...document.querySelectorAll("#plist li")];
+  if(!items.length) return;
+  if(g==="all"){ pick(items[0]); return; }
+  let first=items.find(li=>li.dataset.sl===g);
+  if(first) pick(first);
+}
+function toggleRate(){ rn=(rn+1)%rates.length; rate=rates[rn]; document.getElementById("rt").textContent=ratesLabel[rn]; }
+function toggleCn(){ readCn=!readCn; let b=document.getElementById("cnBtn"); b.textContent="读中文："+(readCn?"开":"关"); b.classList.toggle("on",readCn); }
+
+/* ---------- 查找：我的词库筛选 / 全字典在线查词 + 加入练习 ---------- */
+const CKEY="awl_custom_words";
+function loadCustom(){ try{return JSON.parse(localStorage.getItem(CKEY)||"[]");}catch(e){return [];} }
+function saveCustom(a){ localStorage.setItem(CKEY, JSON.stringify(a)); }
+function bankHas2(w){ return [...document.querySelectorAll("#plist li")].map(r=>r.dataset.w.toLowerCase()).includes((w||"").toLowerCase()); }
+let curMode2="bank";
+function setMode2(m){
+  curMode2=m;
+  document.getElementById("modeBank2").classList.toggle("on",m==="bank");
+  document.getElementById("modeDict2").classList.toggle("on",m==="dict");
+  const q=document.getElementById("q2"); q.value=""; document.getElementById("searchInfo2").textContent="";
+  filterList2("");
+  q.placeholder=(m==="dict")?"输入英文单词，查全字典…":"输入单词 / 中文筛选…";
+  document.getElementById("qbtn2").style.display=(m==="dict")?"":"none";
+}
+function onInput2(){ if(curMode2==="bank") filterList2(document.getElementById("q2").value.trim()); }
+function onKey2(e){ if(e.key==="Enter" && curMode2==="dict") doSearch2(); }
+function filterList2(q){
+  const rows=[...document.querySelectorAll("#plist li")];
+  if(!q){ rows.forEach(r=>r.style.display=""); document.getElementById("searchInfo2").textContent=""; return; }
+  q=q.toLowerCase(); let n=0;
+  rows.forEach(r=>{
+    const hit=(r.dataset.w.toLowerCase().includes(q))||((r.dataset.tr||"").toLowerCase().includes(q));
+    r.style.display=hit?"":"none"; if(hit)n++;
+  });
+  document.getElementById("searchInfo2").textContent="找到 "+n+" 个（共 "+rows.length+"）";
+}
+function doSearch2(){
+  if(curMode2!=="dict") return;
+  const w=document.getElementById("q2").value.trim().toLowerCase();
+  if(!w) return;
+  const info=document.getElementById("searchInfo2");
+  info.textContent="查找中…";
+  fetch("https://api.dictionaryapi.dev/api/v2/entries/en/"+encodeURIComponent(w))
+    .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+    .then(d=>{
+      const e=Array.isArray(d)?d[0]:d;
+      let ph=""; if(e&&e.phonetic) ph=e.phonetic;
+      else if(e&&e.phonetics){ const p=(e.phonetics.find(x=>x.text))||e.phonetics[0]; if(p) ph=p.text||""; }
+      const pos=(e&&e.meanings&&e.meanings[0]&&e.meanings[0].partOfSpeech)||"";
+      const inBank=bankHas2(w);
+      const add=inBank?"":'<button class="addbtn2" onclick="addWord2(\''+w+'\',\''+(ph||'').replace(/'/g,'')+'\')">＋ 加入练习</button>';
+      info.innerHTML='<div class="dictcard"><b>'+w+'</b> <span class="ph">'+ph+'</span> <span class="pos">'+pos+'</span> '+add+(inBank?'<span class="already">已在词库</span>':'')+'</div>';
+    })
+    .catch(()=>{ info.innerHTML='<span class="err">未找到「'+w+'」或需联网（全字典查找需访问在线词典）</span>'; });
+}
+function addWord2(w,ph){
+  w=w.toLowerCase();
+  let arr=loadCustom();
+  if(arr.some(x=>x.w===w)){ document.getElementById("searchInfo2").innerHTML='<span class="already">「'+w+'」已在自定义词</span>'; return; }
+  arr.push({w:w,ph:ph||"",tr:""}); saveCustom(arr); renderCustom2();
+  document.getElementById("searchInfo2").innerHTML='<span class="ok">已加入练习：'+w+'</span>';
+}
+function rmWord2(ev,w){ ev.stopPropagation(); saveCustom(loadCustom().filter(x=>x.w!==w)); renderCustom2(); }
+function exportCustom2(){
+  const arr=loadCustom();
+  if(!arr.length){ alert("还没有自定义词"); return; }
+  const blob=new Blob([JSON.stringify(arr,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="AWL自定义词.json"; a.click();
+}
+function renderCustom2(){
+  const ul=document.getElementById("plist");
+  ul.querySelectorAll("li.custom2").forEach(x=>x.remove());
+  loadCustom().forEach(c=>{
+    const li=document.createElement("li");
+    li.className="custom2"; li.dataset.w=c.w; li.dataset.tr=c.tr||""; li.dataset.i="0"; li.dataset.sl="custom";
+    li.onclick=function(){pick(this);};
+    li.innerHTML='<button class="say" onclick="say(event,this)">▶</button>'+
+      '<span class="w">'+c.w+' <span class="star">★</span></span>'+
+      '<span class="ph">'+(c.ph||"")+'</span>'+
+      '<span class="tr">'+(c.tr||"自定义词")+'</span>'+
+      '<button class="rm2" onclick="rmWord2(event,\''+c.w+'\')">×</button>';
+    ul.appendChild(li);
+  });
+}
+tab(0);
+</script>
+</body>
+</html>
