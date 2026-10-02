@@ -762,17 +762,22 @@ function setRate(idx){
 let cnVoices=[], timer=null, readCn=true, startIdx=0, audioOK=true;
 const AUDIO_BASE="audio/";
 const au=document.getElementById("au");
+let curAudio=null;
+function pauseCur(){ try{ if(curAudio){ curAudio.pause(); curAudio=null; } }catch(e){} }
 function loadCnVoices(){ let all=speechSynthesis.getVoices(); cnVoices=all.filter(v=>/zh|cmn/i.test(v.lang)); }
 speechSynthesis.onvoiceschanged=loadCnVoices; loadCnVoices();
 function playAudio(w,cb){
   let done=false;
   function ok(){ if(done)return; done=true; if(cb)cb(); }
   function fb(){ if(done)return; done=true; fallbackSpeak(w,cb); }
-  au.playbackRate=rate;
-  au.onended=ok;
-  au.onerror=fb;
-  au.src=AUDIO_BASE+encodeURIComponent(w)+".mp3";
-  let p=au.play();
+  // 每个词用独立 Audio 实例：复用同一个 audio 元素跨多次 .src 切换时，Chrome 会丢 ended 事件，导致顺读卡在第一个词
+  try{ if(curAudio){ curAudio.pause(); curAudio=null; } }catch(e){}
+  let el=new Audio(AUDIO_BASE+encodeURIComponent(w)+".mp3");
+  el.playbackRate=rate;
+  el.onended=ok;
+  el.onerror=fb;
+  curAudio=el;
+  let p=el.play();
   if(p&&p.catch) p.catch(fb);
   setTimeout(function(){ if(!done){ done=true; fallbackSpeak(w,cb); } }, 2600);
 }
@@ -784,8 +789,11 @@ function fallbackSpeak(w,cb){
     let ev=speechSynthesis.getVoices().filter(v=>/en[-_]?GB/i.test(v.lang));
     if(!ev.length) ev=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
     if(ev.length) u.voice=ev[0];
-    if(cb){ u.onend=cb; u.onerror=cb; }
+    let called=false;
+    function fin(){ if(called)return; called=true; if(cb)cb(); }
+    if(cb){ u.onend=fin; u.onerror=fin; }
     speechSynthesis.speak(u);
+    setTimeout(fin,4000); // 看门狗：TTS 卡死时强制继续，避免顺读卡在单个词
   }catch(e){ if(cb)cb(); }
 }
 function speakCn(text,cb){
@@ -793,8 +801,11 @@ function speakCn(text,cb){
     let u=new SpeechSynthesisUtterance(text);
     u.lang="zh-CN"; u.rate=1.0;
     if(cnVoices.length) u.voice=cnVoices[0];
-    if(cb)u.onend=cb;
+    let called=false;
+    function fin(){ if(called)return; called=true; if(cb)cb(); }
+    if(cb){ u.onend=fin; u.onerror=fin; }
     speechSynthesis.speak(u);
+    setTimeout(fin,4000); // 看门狗：中文 TTS 未回调时强制继续
   }catch(e){ if(cb)cb(); }
 }
 function sayWord(li,cb){
@@ -804,7 +815,7 @@ function sayWord(li,cb){
     else { if(cb)cb(); }
   });
 }
-function say(ev,btn){ ev.stopPropagation(); let li=btn.closest("li"); if(seqPlaying) pauseSeq(); highlight(li); try{speechSynthesis.cancel();}catch(e){} try{au.pause();au.currentTime=0;}catch(e){} sayWord(li); }
+function say(ev,btn){ ev.stopPropagation(); let li=btn.closest("li"); if(seqPlaying) pauseSeq(); highlight(li); try{speechSynthesis.cancel();}catch(e){} pauseCur(); sayWord(li); }
 function pick(li){
   let items=[...document.querySelectorAll("#plist li.row")];
   startIdx=items.indexOf(li); highlight(li);
@@ -832,17 +843,17 @@ function stepSeq(){
 }
 function playAll(){
   try{speechSynthesis.cancel();}catch(e){}
-  try{au.pause();au.currentTime=0;}catch(e){}
+  pauseCur();
   if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer);
   let items=[...document.querySelectorAll("#plist li")].filter(x=>x.classList.contains("row"));
   if(!items.length) return;
   seqEpoch++; seqPos=startIdx; seqPlaying=true; seqPaused=false; updatePlayBtn();
   stepSeq();
 }
-function pauseSeq(){ if(seqPlaying){ seqPlaying=false; seqPaused=true; seqEpoch++; try{au.pause();}catch(e){} try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); updatePlayBtn(); } }
+function pauseSeq(){ if(seqPlaying){ seqPlaying=false; seqPaused=true; seqEpoch++; pauseCur(); try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); updatePlayBtn(); } }
 function resumeSeq(){ if(seqPaused){ seqPaused=false; seqPlaying=true; seqEpoch++; updatePlayBtn(); stepSeq(); } }
 function togglePlay(){ if(seqPlaying) pauseSeq(); else if(seqPaused) resumeSeq(); else playAll(); }
-function stopAll(){ seqPlaying=false; seqPaused=false; try{au.pause();au.currentTime=0;}catch(e){} try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); highlight(null); updatePlayBtn(); }
+function stopAll(){ seqPlaying=false; seqPaused=false; pauseCur(); try{speechSynthesis.cancel();}catch(e){} if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer); highlight(null); updatePlayBtn(); }
 function jumpGroup2(g){
   let items=[...document.querySelectorAll("#plist li")];
   if(!items.length) return;
