@@ -762,24 +762,51 @@ function setRate(idx){
 let cnVoices=[], timer=null, readCn=true, startIdx=0, audioOK=true;
 const AUDIO_BASE="audio/";
 const au=document.getElementById("au");
+// iOS 判定：iPhone/iPad（含 iPadOS 伪装成 Mac 的情况）
+const IS_IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 let curAudio=null;
-function pauseCur(){ try{ if(curAudio){ curAudio.pause(); curAudio=null; } }catch(e){} }
+function pauseCur(){ try{ if(curAudio){ curAudio.pause(); curAudio=null; } }catch(e){} try{ au.pause(); }catch(e){} }
+let ttsPrimed=false;
+function primeTTS(){ // 必须在用户手势内调用：iOS 解锁语音合成引擎，之后的程序化 speak 才会出声
+  if(ttsPrimed) return;
+  try{
+    speechSynthesis.cancel();
+    let u=new SpeechSynthesisUtterance(" ");
+    u.volume=0.1; u.lang="zh-CN";
+    if(cnVoices.length) u.voice=cnVoices[0];
+    speechSynthesis.speak(u);
+    ttsPrimed=true;
+  }catch(e){}
+}
 function loadCnVoices(){ let all=speechSynthesis.getVoices(); cnVoices=all.filter(v=>/zh|cmn/i.test(v.lang)); }
 speechSynthesis.onvoiceschanged=loadCnVoices; loadCnVoices();
 function playAudio(w,cb){
-  let done=false;
+  let done=false, started=false;
   function ok(){ if(done)return; done=true; if(cb)cb(); }
   function fb(){ if(done)return; done=true; fallbackSpeak(w,cb); }
-  // 每个词用独立 Audio 实例：复用同一个 audio 元素跨多次 .src 切换时，Chrome 会丢 ended 事件，导致顺读卡在第一个词
+  function onstart(){ started=true; }
   try{ if(curAudio){ curAudio.pause(); curAudio=null; } }catch(e){}
-  let el=new Audio(AUDIO_BASE+encodeURIComponent(w)+".mp3");
-  el.playbackRate=rate;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  let el;
+  if(IS_IOS){
+    // iOS 铁律：new Audio() 在非手势上下文会被拦截。必须复用首次手势已解锁的同一个 <audio> 元素，
+    // 之后改 src 再 play() 不再需要手势——这是 iOS 上顺读能连续播的关键。
+    el=au;
+  }else{
+    // 桌面浏览器：每词独立实例，避免复用元素跨 .src 切换丢 ended 事件的隐患
+    el=new Audio();
+    curAudio=el;
+  }
   el.onended=ok;
   el.onerror=fb;
-  curAudio=el;
-  let p=el.play();
+  el.addEventListener("playing",onstart,{once:true});
+  el.src=AUDIO_BASE+encodeURIComponent(w)+".mp3";
+  el.playbackRate=rate;
+  let p;
+  try{ p=el.play(); }catch(e){ fb(); return; }
   if(p&&p.catch) p.catch(fb);
-  setTimeout(function(){ if(!done){ done=true; fallbackSpeak(w,cb); } }, 2600);
+  setTimeout(function(){ if(!done&&!started) fb(); },1500);  // 始终没真正开播（被策略拦截等）→ 降级
+  setTimeout(function(){ if(!done) ok(); },15000);           // 绝对上限：任何情况下顺读都不会卡死
 }
 function fallbackSpeak(w,cb){
   try{
@@ -805,7 +832,7 @@ function speakCn(text,cb){
     function fin(){ if(called)return; called=true; if(cb)cb(); }
     if(cb){ u.onend=fin; u.onerror=fin; }
     speechSynthesis.speak(u);
-    setTimeout(fin,4000); // 看门狗：中文 TTS 未回调时强制继续
+    setTimeout(fin,Math.max(3000,900+text.length*260)); // 看门狗：中文 TTS 未回调时按长度强制继续
   }catch(e){ if(cb)cb(); }
 }
 function sayWord(li,cb){
@@ -815,7 +842,7 @@ function sayWord(li,cb){
     else { if(cb)cb(); }
   });
 }
-function say(ev,btn){ ev.stopPropagation(); let li=btn.closest("li"); if(seqPlaying) pauseSeq(); highlight(li); try{speechSynthesis.cancel();}catch(e){} pauseCur(); sayWord(li); }
+function say(ev,btn){ ev.stopPropagation(); let li=btn.closest("li"); if(seqPlaying) pauseSeq(); highlight(li); try{speechSynthesis.cancel();}catch(e){} pauseCur(); primeTTS(); sayWord(li); }
 function pick(li){
   let items=[...document.querySelectorAll("#plist li.row")];
   startIdx=items.indexOf(li); highlight(li);
@@ -839,9 +866,13 @@ function stepSeq(){
   if(seqPos>=items.length){ seqPlaying=false; seqPaused=false; updatePlayBtn(); highlight(null); return; }
   let li=items[seqPos++]; highlight(li);
   const ep=seqEpoch;
-  sayWord(li, function(){ if(!seqPlaying || ep!==seqEpoch) return; seqTimer=setTimeout(stepSeq,200); });
+  let advanced=false;
+  function advance(){ if(advanced||!seqPlaying||ep!==seqEpoch) return; advanced=true; seqTimer=setTimeout(stepSeq,200); }
+  sayWord(li, advance);
+  seqTimer=setTimeout(advance,12000); // 终极看门狗：即使所有回调全部丢失，12 秒后也强制读下一个
 }
 function playAll(){
+  primeTTS(); // 用户手势内预热/解锁 TTS（iOS 必需）
   try{speechSynthesis.cancel();}catch(e){}
   pauseCur();
   if(seqTimer)clearTimeout(seqTimer); if(timer)clearTimeout(timer);
